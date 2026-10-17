@@ -1,14 +1,18 @@
 // Registro de prompts en prompt_track.md.
 // - UserPromptSubmit: añade «## Prompt N» con el prompt tal cual y la salida pendiente.
 // - Stop: al terminar el turno, rellena la salida pendiente con un resumen de la respuesta.
-import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
+// - Cabecera (antes del primer «## Prompt»): `sesion_actual:` (lo cambias a mano al empezar otra
+//   sesión) y la lista `**Sesiones**:` con el rango de prompts de cada una; el hook amplía el rango
+//   de la sesión actual o añade una nueva.
 const FILE = 'prompt_track.md'
 const PENDING = '**Qué salió:** _(pendiente)_'
 const HEADER =
-  '# Prompts\n\nRegistro automático (hooks `UserPromptSubmit` y `Stop`): cada prompt lanzado, ' +
-  'con su modelo, su herramienta y un resumen de la salida.\n'
+  '# Prompts\n\nRegistro semi-automático (hooks `UserPromptSubmit` y `Stop`): cada prompt lanzado, ' +
+  'con su modelo, su herramienta y un resumen de la salida.\n' +
+  'sesion_actual: Sin nombre\n**Sesiones**:\n---\n'
 
 const MODEL_NAMES = {
   'claude-opus-5-5': 'Opus 5.5',
@@ -69,14 +73,65 @@ function summarize(entries) {
       if (block.type === 'text' && block.text.trim()) lastText = block.text
     }
   }
-  const text = (recap || lastText).replace(/\s+/g, ' ').trim()
+  const text = toThirdPerson((recap || lastText).replace(/\s+/g, ' ').trim())
   if (!text) return '_(sin respuesta de texto)_'
   return text.length > 600 ? `${text.slice(0, 597)}…` : text
 }
 
+// El resumen se lee como lo contaría quien lanzó el prompt: «Creé…» → «Creó…».
+// Heurística: verbos en pretérito al empezar frase o tras «,», «y», «e» (opcionalmente tras «no»).
+const IRREGULAR = { hice: 'hizo', puse: 'puso', pude: 'pudo', tuve: 'tuvo', dije: 'dijo', fui: 'fue', vi: 'vio', leí: 'leyó', releí: 'releyó', traje: 'trajo', quise: 'quiso', supe: 'supo' }
+const NOT_VERBS = new Set(['así', 'aquí', 'allí', 'ahí', 'sí', 'qué', 'café', 'jamás', 'también', 'según', 'aún', 'más', 'ti', 'mí', 'casi'])
+
+function thirdPerson(word) {
+  const lower = word.toLowerCase()
+  if (NOT_VERBS.has(lower)) return null
+  let out = IRREGULAR[lower]
+  if (!out && lower.length > 3 && lower.endsWith('qué')) out = lower.slice(0, -3) + 'có'
+  else if (!out && lower.length > 3 && lower.endsWith('gué')) out = lower.slice(0, -3) + 'gó'
+  else if (!out && lower.length > 3 && lower.endsWith('cé')) out = lower.slice(0, -2) + 'zó'
+  else if (!out && lower.length > 3 && lower.endsWith('é')) out = lower.slice(0, -1) + 'ó'
+  else if (!out && lower.length > 3 && lower.endsWith('í')) out = lower.slice(0, -1) + 'ió'
+  if (!out) return null
+  return word[0] === word[0].toUpperCase() ? out[0].toUpperCase() + out.slice(1) : out
+}
+
+function toThirdPerson(text) {
+  return text.replace(/(^|[.!?:;,]\s+|\s+[ye]\s+)((?:(?:[ye]|[Nn]o)\s+)*)([A-Za-zÁÉÍÓÚÑáéíóúñ]+)(?![A-Za-zÁÉÍÓÚÑáéíóúñ])/g, (all, pre, no = '', word) => {
+    const verb = thirdPerson(word)
+    return verb ? pre + no + verb : all
+  })
+}
+
+// Amplía el rango de la sesión actual hasta el prompt n, o abre una sesión nueva si cambió.
+function updateSessions(text, n) {
+  const cut = text.search(/^## Prompt \d+/m)
+  const head = cut === -1 ? text : text.slice(0, cut)
+  const rest = cut === -1 ? '' : text.slice(cut)
+  const current = head.match(/^sesion_actual:\s*(.+)$/m)?.[1].trim().replace(/^["']|["']$/g, '')
+  if (!current) return text
+  const entry = (name, from) => `  - nombre: ${name}\n    prompts: ${from}-${n}`
+  const sessions = [...head.matchAll(/^ {2}- nombre: (.+)\r?\n {4}prompts: (\d+)-(\d+)[ \t]*$/gm)]
+  const last = sessions.at(-1)
+  let updated
+  if (last && last[1].trim() === current) {
+    updated = head.slice(0, last.index) + entry(current, last[2]) + head.slice(last.index + last[0].length)
+  } else if (last) {
+    const end = last.index + last[0].length
+    updated = head.slice(0, end) + '\n' + entry(current, n) + head.slice(end)
+  } else {
+    const list = head.match(/^\*\*Sesiones\*\*:.*$/m)
+    if (!list) return text
+    const end = list.index + list[0].length
+    updated = head.slice(0, end) + '\n' + entry(current, n) + head.slice(end)
+  }
+  return updated + rest
+}
+
 try {
   const input = JSON.parse(readFileSync(0, 'utf8'))
-  const file = join(input.cwd || process.cwd(), FILE)
+  // Siempre en la raíz del proyecto, aunque el directorio de trabajo haya cambiado.
+  const file = join(process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd(), FILE)
 
   if (input.hook_event_name === 'Stop') {
     if (!existsSync(file)) process.exit(0)
@@ -93,15 +148,15 @@ try {
   if (!prompt) process.exit(0)
 
   const current = existsSync(file) ? readFileSync(file, 'utf8') : HEADER
-  if (!existsSync(file)) writeFileSync(file, HEADER)
   const n = (current.match(/^## Prompt \d+/gm) ?? []).length + 1
 
   const model = lastModel(readTranscript(input.transcript_path))
   const ticks = '`'.repeat(Math.max(3, ...[...prompt.matchAll(/`+/g)].map((m) => m[0].length + 1)))
 
-  appendFileSync(
+  writeFileSync(
     file,
-    `\n## Prompt ${n}\n\n` +
+    updateSessions(current, n) +
+      `\n## Prompt ${n}\n\n` +
       `**Modelo:** ${MODEL_NAMES[model] ?? model}\n` +
       `**Herramienta:** Claude Code\n\n` +
       `${ticks}\n${prompt}\n${ticks}\n\n` +
