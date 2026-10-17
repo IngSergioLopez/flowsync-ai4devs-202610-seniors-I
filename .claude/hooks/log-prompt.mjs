@@ -153,9 +153,14 @@ try {
   const model = lastModel(readTranscript(input.transcript_path))
   const ticks = '`'.repeat(Math.max(3, ...[...prompt.matchAll(/`+/g)].map((m) => m[0].length + 1)))
 
+  // Separador `---` entre prompts (el primero ya lo trae la cabecera).
+  const base = updateSessions(current, n).replace(/\s*$/, '\n')
+  const separator = n > 1 && !/^---\s*$/m.test(base.split('\n').filter(Boolean).at(-1) ?? '') ? '\n---\n' : ''
+
   writeFileSync(
     file,
-    updateSessions(current, n) +
+    base +
+      separator +
       `\n## Prompt ${n}\n\n` +
       `**Modelo:** ${MODEL_NAMES[model] ?? model}\n` +
       `**Herramienta:** Claude Code\n\n` +
