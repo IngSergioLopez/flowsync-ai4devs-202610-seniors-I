@@ -4,7 +4,7 @@ Registro semi-automático (hooks `UserPromptSubmit` y `Stop`): cada prompt lanza
 sesion_actual: Sesion 4
 **Sesiones**:
   - nombre: Sesion 4
-    prompts: 1-35
+    prompts: 1-33
 ---
 
 ## Prompt 1
