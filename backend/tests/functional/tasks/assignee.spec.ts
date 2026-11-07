@@ -99,6 +99,21 @@ test.group('Tasks | responsable', (group) => {
       assert.notInclude(serialized, token)
     })
 
+    // Mismo scenario: el requisito prohíbe «ningún otro dato de esa cuenta», y
+    // las fechas de alta y modificación de la cuenta lo son. Va en un test
+    // aparte para que su resultado no quede tapado por el del email.
+    test(`la tarea no expone las fechas de la cuenta de su responsable (${lectura})`, async ({
+      client,
+      assert,
+    }) => {
+      const token = await sesion(client, 'Ada Lovelace', 'ada@example.com')
+      const assignee = await assigneeAl(client, lectura, token)
+
+      assert.isObject(assignee)
+      assert.notProperty(assignee, 'createdAt')
+      assert.notProperty(assignee, 'updatedAt')
+    })
+
     test(`un responsable sin nombre llega con nombre nulo y con iniciales (${lectura})`, async ({
       client,
       assert,
