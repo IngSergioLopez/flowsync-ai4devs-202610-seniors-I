@@ -4,7 +4,7 @@ Registro semi-automático (hooks `UserPromptSubmit` y `Stop`): cada prompt lanza
 sesion_actual: Sesion 4
 **Sesiones**:
   - nombre: Sesion 4
-    prompts: 1-32
+    prompts: 1-35
 ---
 
 ## Prompt 1
@@ -42,7 +42,7 @@ leí los escenarios de task incluido el de "Lo que cada tarea muestra de su resp
 lee los escenarios de la spec referente al requerimiento de task "Lo que cada tarea muestra de su responsable" y los test existentes. Antes de escribir los test necesito que hagas la matriz de trazabilidad inicial para cada escenario de ese requerimiento. para cada una indica el criterio de aceptacion, que prueba lo cubre y si está o no cubierto por orden de prioridad. No implementes nada aún
 ```
 
-**Qué salió:** # Matriz inicial: «Lo que cada tarea muestra de su responsable» **Scenarios: 3 · Cubiertos: 0** (los tests de `tasks` todavía no existen) | Prioridad | Scenario | Criterio de aceptación | Test que lo cubre | Estado | Qué faltó para decidir | |---|---|---|---|---|---| | 1 | **La tarea no filtra datos de cuenta** | Al obtener una tarea, sola (`GET /tasks/:id`) o en la lista (`GET /tasks`), su `assignee` no trae el `email` ni ningún otro dato de acceso | — | No cubierto | Ningún test pide tareas. `auth/signup.spec.ts` › «la contraseña nunca sale en la respuesta» se parece, pero mira el usuario del registro, no el `assignee` | | 2 | **Responsable sin nombre** | Si el responsable es una cuenta sin nombre, `assignee.fullName` llega `null` y `assignee.initials` sigue llegando, sin recurrir al …
+**Qué salió:** muestra una matriz inicial con los tres escenarios
 
 ---
 
@@ -68,7 +68,7 @@ el id no se permite. la spec dice que no se dan datos extra del usuario y eso in
 no modifiquemos las spec. Sigamos con la tarea del readme paso a paso. Haz un plan de ejecucion y check list. Quiero que generes una primera versión de la matriz tal como la pide el readme
 ```
 
-**Qué salió:** Escribió la primera versión de la matriz en [docs/verificacion/salv.md](../docs/verificacion/salv.md). Los tres scenarios salen **No cubierto**: no hay ningún test de `tasks`, y los de `auth` que se parecen comprueban la respuesta del login, no una tarea. El número de cubiertos y las tres líneas se quedan pendientes hasta el final. En la línea 1 apunté tu estimación de 0, que me diste después del primer prompt y no antes. Las specs no las he tocado. ## Plan de ejecución 1. **Matriz inicial** (hecho): una fila por scenario con las cuatro casillas y los dos números arriba. 2. **Revisar contigo las filas**: el README espera al menos un «No lo sé». Si alguna fila te deja dudas, cámbiala antes de seguir. 3. **Tests que faltan**: un fichero en `backend/tests/functional/tasks/` con un test por…
+**Qué salió:** Escribió la primera versión de la matriz y me dió los siguientes pasos a seguir
 
 ---
 
@@ -81,7 +81,7 @@ no modifiquemos las spec. Sigamos con la tarea del readme paso a paso. Haz un pl
 la que más dudas me genera es la del id. de alguna manera en menos expuesta a nivel de datos pero es más especifica a nivel de usuario que el dato de las iniciales. actualiza la matriz
 ```
 
-**Qué salió:** La fila 1 de [docs/verificacion/salv.md](../docs/verificacion/salv.md) queda en **No lo sé**. El motivo que anoté es que no está claro si el `id` cuenta como «otro dato». El requisito prohíbe todo lo que no sea nombre e iniciales, pero el scenario solo nombra el email y los datos de acceso. El `id` no da acceso, pero identifica al usuario con más precisión que las iniciales. Esta duda también sirve para la línea 2 de la parte B: es un hueco de spec, porque la regla no deja claro si el `id` entra. Para el test, antes me dijiste que el `id` no se permite. Si sigue en pie, el test solo aceptará `fullName` e `initials` y saldrá rojo en las tres lecturas, porque hoy se envía el `id` en todas. Si lo prefieres, puedo limitarlo a que no salgan el email ni los datos de acceso. ¿Cuál dejo?
+**Qué salió:** me indica que la fila 1 puede estar en no lo sé porque no sabe si id se considera dato a restringir. Y me avisa que está por todos lados.
 
 ---
 
@@ -94,7 +94,7 @@ la que más dudas me genera es la del id. de alguna manera en menos expuesta a n
 entiendo que no hay razon para exponer el id aunque puede ser util a posteriori. Dado que no hay indiicaciones explicitas déjalo. Se ha de modificar la spec si eso es lo que se necesita, pero está fuera del scope de la tarea.
 ```
 
-**Qué salió:** Actualizó la matriz en [docs/verificacion/salv.md](../docs/verificacion/salv.md) con el `id` tolerado. El test del scenario 1 no fallará porque aparezca el `id`; solo comprobará que no salgan el email ni datos de acceso, como `password` o tokens. La fila 1 sigue en **No lo sé**: la duda es real y es el dato que interesa para la parte B. Debajo de la matriz anoté las tres decisiones: `id` tolerado, «obtener» que incluye la tarea suelta, la lista y la creación, y responsable sin nombre con nombre nulo e iniciales no vacías. La spec no se toca. ¿Paso al punto 3 y escribo los tres tests?
+**Qué salió:** Actualizó la matriz para una primera versión
 
 ---
 
@@ -133,7 +133,7 @@ bien inicia los test manteniendo la metodología de los test existentes. muestra
 me rectifico, inicia la creación de los tests para cada escenario del requerimiento trabajado
 ```
 
-**Qué salió:** Escribió los tres tests en [backend/tests/functional/tasks/assignee.spec.ts](tests/functional/tasks/assignee.spec.ts), uno por scenario, con el mismo estilo que los de `auth/`. No los he ejecutado todavía. Los tres siguen el mismo recorrido: 1. Crean una cuenta y hacen login. 2. Crean una tarea con `POST /tasks`. 3. Leen el `assignee` en las tres lecturas: al crearla, suelta (`GET /tasks/:id`) y en la lista (`GET /tasks`). Cada aserción lleva un mensaje que dice en qué lectura falla. ## Spec frente a test | Scenario de la spec | Test | Qué afirma | |---|---|---| | **Responsable identificable**: el `assignee` trae el nombre "Ada Lovelace" y sus iniciales | `Tasks \| responsable` › «el responsable de una tarea trae su nombre y sus iniciales» | En las 3 lecturas: `fullName === 'Ada Lovelac…
+**Qué salió:** Escribió los tres tests con una explicacion vaga
 
 ---
 
@@ -146,7 +146,7 @@ me rectifico, inicia la creación de los tests para cada escenario del requerimi
 muestrame los tres test
 ```
 
-**Qué salió:** Este es el código de [backend/tests/functional/tasks/assignee.spec.ts](tests/functional/tasks/assignee.spec.ts). Los tres tests comparten estos dos ayudantes del grupo: ```ts async function sesion(client: any, fullName: string | null, email = 'ada@example.com') { await User.create({ fullName, email, password: 'secreto123' }) const response = await client.post('/api/v1/auth/login').json({ email, password: 'secreto123' }) return response.body().data.token as string } /** Crea una tarea y devuelve su `assignee` en cada una de las tres lecturas. */ async function assigneeEnCadaLectura(client: any, token: string) { const creada = await client .post('/api/v1/tasks') .header('Authorization', `Bearer ${token}`) .json({ title: 'Revisar el informe' }) creada.assertStatus(201) const id = creada.bo…
+**Qué salió:** muestra el codigo de los tres test
 
 ---
 
@@ -159,7 +159,7 @@ muestrame los tres test
 donde usas Fecha today=2026-11-06: la pide GET /tasks/:id
 ```
 
-**Qué salió:** La fecha solo se usa en la lectura de la tarea suelta, dentro del ayudante `assigneeEnCadaLectura` de [assignee.spec.ts](tests/functional/tasks/assignee.spec.ts), como `.qs({ today: HOY })`: ```ts // `GET /tasks/:id` exige el día de quien mira; su valor no afecta al responsable. const HOY = '2026-11-06' ... const suelta = await client .get(`/api/v1/tasks/${id}`) .header('Authorization', `Bearer ${token}`) .qs({ today: HOY }) // ← aquí ``` **Por qué hace falta:** `TasksController.show` valida la petición con `taskReferenceDayValidator`, en [validators/task.ts](app/validators/task.ts). Ese validador exige `today` con formato `YYYY-MM-DD` y no tiene valor por defecto. Sin él, `GET /tasks/:id` responde `422` antes de llegar a la tarea. El día sirve para calcular `isOverdue`, que no tiene na…
+**Qué salió:** me indica donde se usa la fecha y que no es relevante para el caso de prueba.
 
 ---
 
@@ -185,7 +185,7 @@ pon la fecha del sistema  en su lugar
 repiteme las tareas pendientes del readme antes
 ```
 
-**Qué salió:** Esto es lo que queda del README: **Parte A** - [ ] **Ejecutar los tests** con `npm test` y anotar el resultado tal cual. Si algo sale rojo, se queda rojo: no se arregla el código ni se aflojan los tests. - [ ] **Cerrar la matriz:** pasar a «Cubierto» las filas con test verde y escribir el número de cubiertos arriba. Decidir si la fila 1 sigue en «No lo sé» o cambia de estado. **Parte B: tres líneas en [docs/verificacion/salv.md](../docs/verificacion/salv.md)** - [ ] **Línea 1:** tu estimación de 0 frente a los cubiertos de verdad, sin redondear. - [ ] **Línea 2:** el hueco que no supiste si era de test o de spec. El candidato es el `id` del responsable: el requisito dice «ningún otro dato» y el scenario solo nombra el email y los datos de acceso. - [ ] **Línea 3:** lo que tuviste que de…
+**Qué salió:** muestra lo faltante del readme
 
 ---
 
@@ -198,7 +198,7 @@ repiteme las tareas pendientes del readme antes
 bien sube primero la versión actual de la matriz
 ```
 
-**Qué salió:** La matriz ya está en tu fork: commit `3ae1b1f` en la rama `trazabilidad-salv`, que ahora sigue a `origin`. El commit lleva solo `docs/verificacion/salv.md`; los tests y el resto de cambios locales se quedan fuera. El PR contra el repo del curso todavía no está abierto, como pide el README. Siguiente paso: ejecutar los tests.
+**Qué salió:** me muestra que está hecho el comit y me consulta si sigue
 
 ---
 
@@ -302,7 +302,7 @@ si hazlo. Valida la entrega y lanza en paralelo la revisión  adversarial
 ajusta prompts.md para que los casos sin respuesta figure "(sin anotar)". Revisaré esas respuestas a mano. Repara la matriz con los criterios indicados por el revisor incluidos los nombres de los test. En la columna 1 pon el valor correcto de No lo sé. La lina 1 deja solo los dos numeros 0 y 0. Leí y vi que habia en el código antes de leer el readme para entender el proyecto.  Dime que falta aclarar
 ```
 
-**Qué salió:** Aplicó los cambios en la matriz y en `prompts.md`.  **Matriz** ([docs/verificacion/salv.md](docs/verificacion/salv.md)): - **Fila 1:** pasa a **No lo sé**. La casilla 4 dice que el test no decide sobre el `id`, `createdAt` ni `updatedAt`, y la descripción ya incluye la creación. - **Cabecera:** 3 scenarios, **2 cubiertos**. - **Nombres de los tests:** cada fila lleva los tres nombres exactos de la suite, con su ✔ o ✖. - **Decisiones:** la del `id` pasa a ser «Datos de la cuenta que se comprueban». Explica qué se afirma, qué no y qué sale hoy en cada lectura. - **Línea 1:** `0 / 0`, sin texto añadido. **`prompts.md`:** los regeneró.
+**Qué salió:** Aplicó los cambios y me indicó los faltantes
 
 ---
 
@@ -315,7 +315,7 @@ ajusta prompts.md para que los casos sin respuesta figure "(sin anotar)". Revisa
 muestrame el archivo de matriz que tienes hasta ahora
 ```
 
-**Qué salió:** Este es el contenido actual de [docs/verificacion/salv.md](docs/verificacion/salv.md), todavía sin commit: ```markdown # Trazabilidad: «Lo que cada tarea muestra de su responsable» Spec: `openspec/specs/tasks/spec.md` · Requisito: **Lo que cada tarea muestra de su responsable** - **Scenarios del requisito:** 3 - **Scenarios cubiertos:** 2 ## Matriz Tests en `backend/tests/functional/tasks/assignee.spec.ts`, grupo `Tasks | responsable`. Hay un test por scenario y lectura: la creación (`POST /tasks`), la tarea suelta (`GET /tasks/:id`) y la lista (`GET /tasks`). La suelta y la lista las lee otra cuenta. | # | Scenario (en una línea) | Prueba que lo cubre (nombre en la suite) | Estado | Si «No lo sé», qué faltó | |---|---|---|---|---| | 1 | La tarea no filtra datos de la cuenta: su `assign…
+**Qué salió:** me muestra el contenido del archivo
 
 ---
 
@@ -420,3 +420,17 @@ añade a la linea 3 la frase.  Mostrar al dueño sus datos cuando crea la tarea 
 ```
 
 **Qué salió:** Añadió la frase al final de la línea 3: > …y que la tarea la lea también otra cuenta. Mostrar al dueño sus datos cuando crea la tarea no es una fuga de información, pero es innecesario y es un punto a especificar. Ajustó la frase para que encaje en el texto: escribió «y es un punto a especificar» en vez de «siendo un punto a especificar».
+
+---
+
+## Prompt 33
+
+**Modelo:** Opus 5.5
+**Herramienta:** Claude Code
+
+```
+se volvió a revisar manualmente prompts.md. prepara el commit
+```
+
+**Qué salió:** Hizo el commit con los 3 ficheros de la entrega. me señala unos links relativos en las respuestas de este archivo (prompts.md)  Los corrijo a mano.
+
