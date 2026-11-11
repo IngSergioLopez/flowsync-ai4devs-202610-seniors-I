@@ -1,5 +1,5 @@
+import Task from '#models/task'
 import User from '#models/user'
-import { DateTime } from 'luxon'
 import { test } from '@japa/runner'
 import testUtils from '@adonisjs/core/services/test_utils'
 
@@ -9,123 +9,121 @@ import testUtils from '@adonisjs/core/services/test_utils'
  * `openspec/specs/tasks/spec.md`: responsable identificable, la tarea no filtra
  * datos de cuenta y responsable sin nombre.
  *
- * «Obtener una tarea» se comprueba en las tres lecturas que devuelven una, cada
- * una en su propio test para que un fallo en una no oculte las demás: la
- * creación (`POST /tasks`), la tarea suelta (`GET /tasks/:id`) y la lista
- * (`GET /tasks`).
+ * Cada scenario se comprueba en tres variantes, un test por variante para que
+ * un fallo no tape a otro:
+ * - crear: `POST /tasks`, lo que ve el responsable al crearla;
+ * - una tarea: `GET /tasks/:id`, leída por otra cuenta;
+ * - lista: `GET /tasks`, leída por otra cuenta.
  *
- * La tarea suelta y la lista se leen con la sesión de OTRA cuenta: hoy una
- * tarea nace a nombre de quien la crea, así que si lee su dueño no se revela
- * nada a nadie, pero la spec no lo limita al dueño y la lista es compartida.
- * La creación solo la puede leer quien crea.
+ * Decisiones que la spec no fija: «obtener» incluye las tres variantes; las
+ * fechas de la cuenta se prueban por el «ningún otro dato» del requisito; el
+ * `id` del responsable se tolera; «datos de acceso» = `email` y `password`.
  *
- * El `id` del responsable se tolera: la spec no lo prohíbe de forma explícita.
+ * Dependencia de otra spec: el valor de las iniciales lo fija la regla de
+ * iniciales de la cuenta, no esta. Aquí solo se comprueba que lleguen.
  */
 test.group('Tasks | responsable', (group) => {
   group.each.setup(() => testUtils.db().withGlobalTransaction())
 
-  // `GET /tasks/:id` exige el día de quien mira; su valor no afecta al responsable.
-  const HOY = DateTime.now().toFormat('yyyy-MM-dd')
+  // `GET /tasks/:id` exige el día de quien mira; solo afecta al vencimiento.
+  const HOY = '2026-01-15'
 
-  const LECTURAS = ['al crearla', 'suelta', 'en la lista'] as const
-  type Lectura = (typeof LECTURAS)[number]
+  const VARIANTES = ['crear', 'una tarea', 'lista'] as const
+  type Variante = (typeof VARIANTES)[number]
 
-  async function sesion(client: any, fullName: string | null, email: string) {
-    await User.create({ fullName, email, password: 'secreto123' })
-
-    const response = await client.post('/api/v1/auth/login').json({ email, password: 'secreto123' })
-
-    return response.body().data.token as string
+  function cuenta(fullName: string | null, email: string) {
+    return User.create({ fullName, email, password: 'secreto123' })
   }
 
   /**
-   * Crea una tarea con el token del responsable y devuelve su `assignee` tal
-   * como llega en la lectura pedida. La suelta y la lista las lee otra cuenta.
+   * Devuelve el `assignee` de una tarea cuyo responsable es `responsable`, tal
+   * como llega en la variante pedida. Cada variante llama a un solo endpoint.
    */
-  async function assigneeAl(client: any, lectura: Lectura, responsable: string) {
-    const creada = await client
-      .post('/api/v1/tasks')
-      .header('Authorization', `Bearer ${responsable}`)
-      .json({ title: 'Revisar el informe' })
-    creada.assertStatus(201)
-
-    if (lectura === 'al crearla') return creada.body().data.assignee
-
-    const id = creada.body().data.id
-    const otra = await sesion(client, 'Alan Turing', 'alan@example.com')
-
-    if (lectura === 'suelta') {
-      const suelta = await client
-        .get(`/api/v1/tasks/${id}`)
-        .header('Authorization', `Bearer ${otra}`)
-        .qs({ today: HOY })
-      suelta.assertStatus(200)
-      return suelta.body().data.assignee
+  async function assigneeEn(client: any, variante: Variante, responsable: User) {
+    if (variante === 'crear') {
+      const response = await client
+        .post('/api/v1/tasks')
+        .json({ title: 'Revisar el informe' })
+        .loginAs(responsable)
+      response.assertStatus(201)
+      return response.body().data.assignee
     }
 
-    const lista = await client.get('/api/v1/tasks').header('Authorization', `Bearer ${otra}`)
-    lista.assertStatus(200)
-    return lista.body().data.find((task: { id: number }) => task.id === id)?.assignee
+    const task = await Task.create({
+      title: 'Revisar el informe',
+      status: 'pending',
+      assigneeId: responsable.id,
+    })
+    const otra = await cuenta('Alan Turing', 'alan@example.com')
+
+    if (variante === 'una tarea') {
+      const response = await client.get(`/api/v1/tasks/${task.id}`).qs({ today: HOY }).loginAs(otra)
+      response.assertStatus(200)
+      return response.body().data.assignee
+    }
+
+    const response = await client.get('/api/v1/tasks').loginAs(otra)
+    response.assertStatus(200)
+    return response.body().data.find((t: { id: number }) => t.id === task.id)?.assignee
   }
 
-  for (const lectura of LECTURAS) {
-    test(`el responsable de una tarea trae su nombre y sus iniciales (${lectura})`, async ({
+  /** Las claves prohibidas que trae el objeto: todas a la vez, no solo la primera. */
+  function presentes(objeto: Record<string, unknown>, prohibidas: string[]) {
+    return Object.keys(objeto).filter((clave) => prohibidas.includes(clave))
+  }
+
+  for (const variante of VARIANTES) {
+    test(`el responsable trae su nombre y sus iniciales (${variante})`, async ({
       client,
       assert,
     }) => {
-      const token = await sesion(client, 'Ada Lovelace', 'ada@example.com')
-      const assignee = await assigneeAl(client, lectura, token)
+      const ada = await cuenta('Ada Lovelace', 'ada@example.com')
 
-      assert.isObject(assignee)
+      const assignee = await assigneeEn(client, variante, ada)
+
+      assert.isObject(assignee, 'la tarea no llega con su responsable')
       assert.equal(assignee.fullName, 'Ada Lovelace')
-      assert.equal(assignee.initials, 'AL')
+      assert.isString(assignee.initials)
+      assert.isNotEmpty(assignee.initials)
     })
 
-    test(`la tarea no expone el email ni datos de acceso de su responsable (${lectura})`, async ({
+    test(`la tarea no expone el email ni datos de acceso del responsable (${variante})`, async ({
       client,
       assert,
     }) => {
-      const token = await sesion(client, 'Ada Lovelace', 'ada@example.com')
-      const assignee = await assigneeAl(client, lectura, token)
+      const ada = await cuenta('Ada Lovelace', 'ada@example.com')
 
-      assert.isObject(assignee)
-      assert.notProperty(assignee, 'email')
-      assert.notProperty(assignee, 'password')
+      const assignee = await assigneeEn(client, variante, ada)
 
+      assert.isObject(assignee, 'la tarea no llega con su responsable')
+      assert.deepEqual(presentes(assignee, ['email', 'password']), [])
       // El email tampoco puede colarse bajo otra clave.
-      const serialized = JSON.stringify(assignee)
-      assert.notInclude(serialized, 'ada@example.com')
-      assert.notInclude(serialized, 'secreto123')
-      assert.notInclude(serialized, token)
+      assert.notInclude(JSON.stringify(assignee), 'ada@example.com')
     })
 
-    // Mismo scenario: el requisito prohíbe «ningún otro dato de esa cuenta», y
-    // las fechas de alta y modificación de la cuenta lo son. Va en un test
-    // aparte para que su resultado no quede tapado por el del email.
-    test(`la tarea no expone las fechas de la cuenta de su responsable (${lectura})`, async ({
+    test(`la tarea no expone las fechas de la cuenta del responsable (${variante})`, async ({
       client,
       assert,
     }) => {
-      const token = await sesion(client, 'Ada Lovelace', 'ada@example.com')
-      const assignee = await assigneeAl(client, lectura, token)
+      const ada = await cuenta('Ada Lovelace', 'ada@example.com')
 
-      assert.isObject(assignee)
-      assert.notProperty(assignee, 'createdAt')
-      assert.notProperty(assignee, 'updatedAt')
+      const assignee = await assigneeEn(client, variante, ada)
+
+      assert.isObject(assignee, 'la tarea no llega con su responsable')
+      assert.deepEqual(presentes(assignee, ['createdAt', 'updatedAt']), [])
     })
 
-    test(`un responsable sin nombre llega con nombre nulo y con iniciales (${lectura})`, async ({
+    test(`un responsable sin nombre llega con nombre nulo e iniciales (${variante})`, async ({
       client,
       assert,
     }) => {
-      const token = await sesion(client, null, 'ada@example.com')
-      const assignee = await assigneeAl(client, lectura, token)
+      const sinNombre = await cuenta(null, 'ada@example.com')
 
-      assert.isObject(assignee)
+      const assignee = await assigneeEn(client, variante, sinNombre)
+
+      assert.isObject(assignee, 'la tarea no llega con su responsable')
       assert.property(assignee, 'fullName')
       assert.isNull(assignee.fullName)
-
-      // El valor no se fija: el scenario solo exige que lleguen.
       assert.isString(assignee.initials)
       assert.isNotEmpty(assignee.initials)
     })
