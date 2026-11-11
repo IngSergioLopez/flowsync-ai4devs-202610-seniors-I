@@ -2,6 +2,8 @@ import Task from '#models/task'
 import { setTaskDueDateValidator, toCalendarDay } from '#validators/task'
 import type { HttpContext } from '@adonisjs/core/http'
 import TaskDetailTransformer from '#transformers/task_detail_transformer'
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse } from '@foadonis/openapi/decorators'
+import { ApiErrorResponse, SetTaskDueDateBody, TaskDetailResponse } from '#openapi/schemas'
 
 export default class TaskDueDatesController {
   /**
@@ -16,6 +18,21 @@ export default class TaskDueDatesController {
    * Cualquiera con sesión puede cambiar la fecha de cualquier tarea, igual que
    * el estado. No se comprueba quién es el responsable.
    */
+  @ApiOperation({
+    summary: 'Fijar, cambiar o quitar la fecha de vencimiento',
+    description:
+      'Sobre cualquier tarea. Una fecha pasada se acepta. No toca título, responsable ni estado. Devuelve la tarea con `isOverdue` ya resuelto contra `today`.',
+  })
+  @ApiBody({ type: SetTaskDueDateBody })
+  @ApiResponse({ status: 200, description: 'La tarea actualizada.', type: TaskDetailResponse })
+  @ApiResponse({ status: 401, description: 'Sin token válido.', type: ApiErrorResponse })
+  @ApiResponse({ status: 404, description: 'La tarea no existe.' })
+  @ApiResponse({
+    status: 422,
+    description: '`dueDate` o `today` ausentes, mal formados o imposibles (p. ej. `2026-02-31`).',
+    type: ApiErrorResponse,
+  })
+  @ApiBearerAuth()
   async update({ params, request, serialize }: HttpContext) {
     const task = await Task.findOrFail(params.id)
     const { today, dueDate } = await request.validateUsing(setTaskDueDateValidator)
