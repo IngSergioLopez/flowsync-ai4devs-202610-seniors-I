@@ -30,6 +30,8 @@ La fuente de verdad del comportamiento de FlowSync es la **spec viva de cada cap
 
 ## Estado
 
+Reemplazada por [ADR 0002: Los tests de integración como única fuente de verdad ejecutable](0002-tests-como-fuente-de-verdad-ejecutable.md) (2027-11-11).
+
 Aceptada (2026-11-11). Registra una práctica que el repositorio ya seguía desde los changes archivados el 2026-08-13.
 
 ## Consecuencias
